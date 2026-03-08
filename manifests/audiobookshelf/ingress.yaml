@@ -6,7 +6,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: audiobookshelf.local
+  - host: audiobookshelf.home
     http:
       paths:
       - path: /
