@@ -4,6 +4,7 @@ metadata:
   name: audiobookshelf-config
   namespace: audiobookshelf
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:
@@ -16,6 +17,7 @@ metadata:
   name: audiobookshelf-data
   namespace: audiobookshelf
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:
