@@ -33,12 +33,14 @@ spec:
             - name: TS_KUBE_SECRET
               value: "tailscale-state"
             - name: TS_USERSPACE
-              value: "true"
+              value: "false"
             - name: TS_EXTRA_ARGS
-              value: "--advertise-tags=tag:k8s"
+              value: "--advertise-tags=tag:k8s --snat-subnet-routes=true"
           securityContext:
+            privileged: true
             capabilities:
-              add: ["NET_ADMIN"]
+              add:
+                - NET_ADMIN
           resources:
             requests:
               cpu: 50m
