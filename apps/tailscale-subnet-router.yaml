@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-subnet-router
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mesyrob/homelab-k8s
+    targetRevision: HEAD
+    path: manifests/tailscale-subnet-router
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale-subnet
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
