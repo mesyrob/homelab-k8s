@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: language-tutor
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mesyrob/language-tutor
+    targetRevision: HEAD
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: language-tutor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  # The language-tutor-secrets Secret is created manually out-of-band
+  # (kubectl create secret), so don't let Argo prune or sync it.
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: language-tutor-secrets
+      jsonPointers:
+        - /data
