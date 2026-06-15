@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hermes-agent
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mesyrob/homelab-k8s
+    targetRevision: HEAD
+    path: manifests/hermes-agent
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hermes-agent
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  # The hermes-agent-secrets Secret is populated out-of-band via
+  # `kubectl create secret generic` (see manifests/hermes-agent/README.md).
+  # Without this block selfHeal would overwrite real bot token + API key
+  # back to the placeholder values in git. Same pattern as language-tutor.
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: hermes-agent-secrets
+      jsonPointers:
+        - /data

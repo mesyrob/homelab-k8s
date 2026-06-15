@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-agent-config
+  namespace: hermes-agent
+data:
+  # Materialized into /opt/data/config.yaml by the seed-config initContainer
+  # on every pod boot, so git is the source of truth. Schema reference:
+  # https://github.com/NousResearch/hermes-agent/blob/main/cli-config.yaml.example
+  config.yaml: |
+    model:
+      default: "anthropic/claude-opus-4.6"
+      provider: "anthropic"
+
+    # The "local" backend executes tool subprocesses inside this pod.
+    # On Talos there is no host shell to escape to, so the pod IS the
+    # sandbox. See README for the rationale and the path to Modal/Daytona
+    # if stronger isolation is wanted later.
+    terminal:
+      backend: "local"
+      cwd: "/opt/data/home"
+      timeout: 180
+      home_mode: "profile"

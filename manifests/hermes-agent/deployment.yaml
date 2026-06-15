@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes-agent
+  namespace: hermes-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hermes-agent
+  # Hermes docs are explicit: "Never run two gateway containers against the
+  # same data directory." Recreate guarantees the old pod releases the RWO
+  # PVC before the new one mounts.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: hermes-agent
+    spec:
+      serviceAccountName: hermes-agent
+      automountServiceAccountToken: false
+      securityContext:
+        # Aligns PVC ownership with the in-image `hermes` user (uid 10000).
+        fsGroup: 10000
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        # Materialize /opt/data/config.yaml and /opt/data/.env from the
+        # ConfigMap + Secret on every boot so git wins on config and the
+        # dynamic state (sessions/, memories/, skills/, logs/, cron/) is
+        # preserved across restarts.
+        - name: seed-config
+          image: docker.io/library/busybox:1.37.0@sha256:f85340bf132ae937d2c2a763b8335c9bab35d6e8293f70f606b9c6178d84f42b
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              mkdir -p /opt/data /opt/data/home
+              cp /config/config.yaml /opt/data/config.yaml
+              # Build .env from each non-empty file in the mounted Secret.
+              umask 077
+              : > /opt/data/.env.new
+              for f in /secret/*; do
+                [ -f "$f" ] || continue
+                val=$(cat "$f")
+                [ -n "$val" ] || continue
+                printf '%s=%s\n' "$(basename "$f")" "$val" >> /opt/data/.env.new
+              done
+              mv /opt/data/.env.new /opt/data/.env
+              chown -R 10000:10000 /opt/data
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: secret
+              mountPath: /secret
+              readOnly: true
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, FOWNER, DAC_OVERRIDE]
+      containers:
+        - name: hermes
+          # v2026.6.5 ("The Surface Release") — multi-arch index digest.
+          # Bump in lockstep with https://hub.docker.com/r/nousresearch/hermes-agent/tags
+          image: docker.io/nousresearch/hermes-agent:v2026.6.5@sha256:9ad3b04ec916ea2c2da22358fd43b024c788d74073210695af88bfc2e63869b4
+          imagePullPolicy: IfNotPresent
+          args: ["gateway", "run"]
+          env:
+            - name: HERMES_UID
+              value: "10000"
+            - name: HERMES_GID
+              value: "10000"
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          securityContext:
+            # s6-overlay PID 1 must start as root for cont-init.d (chown of
+            # the volume, registering s6 service slots under /run/service/*).
+            # It drops to uid 10000 itself before any Hermes process runs.
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              # Minimum set s6-overlay's stage2 needs: CHOWN for the data
+              # volume, SETUID/SETGID to drop to uid 10000, DAC_OVERRIDE +
+              # FOWNER for the per-profile log dir creation under
+              # /opt/data/logs/gateways/*.
+              add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER]
+          # readOnlyRootFilesystem cannot be set: s6-overlay writes to
+          # /run/service/*, /var/run/s6/*, and the image expects a writable
+          # /tmp. Adding tmpfs mounts for those + retesting is a phase-2
+          # hardening tracked in the README.
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-agent-data
+        - name: config
+          configMap:
+            name: hermes-agent-config
+        - name: secret
+          secret:
+            secretName: hermes-agent-secrets
