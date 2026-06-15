@@ -20,13 +20,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-  # The hermes-agent-secrets Secret is populated out-of-band via
-  # `kubectl create secret generic` (see manifests/hermes-agent/README.md).
-  # Without this block selfHeal would overwrite real bot token + API key
-  # back to the placeholder values in git. Same pattern as language-tutor.
-  ignoreDifferences:
-    - group: ""
-      kind: Secret
-      name: hermes-agent-secrets
-      jsonPointers:
-        - /data
+  # The hermes-agent-secrets Secret is created out-of-band via
+  # `kubectl create secret generic` and is intentionally NOT shipped in git
+  # (see manifests/hermes-agent/README.md). Argo doesn't track it, doesn't
+  # prune it, doesn't clobber it. Same approach as language-tutor.

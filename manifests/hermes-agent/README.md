@@ -28,9 +28,9 @@ Message [@userinfobot](https://t.me/userinfobot) — it replies with your user I
 
 [console.anthropic.com → API Keys](https://console.anthropic.com/settings/keys). This is the pay-as-you-go API product, separate from a Claude.ai subscription.
 
-### 4. Populate the Secret
+### 4. Create the Secret out-of-band
 
-The Secret in git ships with empty placeholder values. ArgoCD has `ignoreDifferences` on `/data` so it will not overwrite your real values. Create them with `kubectl`:
+The Secret is NOT shipped in git — Argo doesn't manage it, so it can't clobber your real values back to placeholders (`stringData` always wins over `data` server-side, so any in-repo placeholder Secret with empty `stringData` would wipe the live values on every sync — same trap that bit the original deploy).
 
 ```sh
 kubectl create secret generic hermes-agent-secrets \
@@ -45,7 +45,7 @@ kubectl create secret generic hermes-agent-secrets \
 
 ### 5. Sync ArgoCD
 
-The first sync creates the namespace, PVC, ConfigMap, ServiceAccount, placeholder Secret (immediately superseded by your `kubectl` apply in step 4 — order doesn't matter, but if you sync first the pod will start without credentials and reconcile after step 4). After the Secret is populated, bounce the pod so the init container re-materializes `/opt/data/.env`:
+The first sync creates the namespace, PVC, ConfigMap, and ServiceAccount. The Secret is yours to manage. After it's populated, bounce the pod so the init container re-materializes `/opt/data/.env`:
 
 ```sh
 kubectl rollout restart deployment/hermes-agent -n hermes-agent
