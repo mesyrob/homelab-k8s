@@ -48,6 +48,18 @@ spec:
                 printf '%s=%s\n' "$(basename "$f")" "$val" >> /opt/data/.env.new
               done
               mv /opt/data/.env.new /opt/data/.env
+              # Prevent the cont-init reconciler in the main container from
+              # auto-starting a second `gateway-default` s6 service that
+              # races the CMD-spawned `hermes gateway run`. On every container
+              # restart the reconciler reads gateway_state.json, sees the
+              # previous run's state="running", and registers+starts a
+              # supervised gateway-default — which then collides with the
+              # CMD-spawned default-profile gateway on /opt/data/gateway.lock
+              # in a permanent restart loop. Wiping the state files here makes
+              # the reconciler treat each pod boot as a fresh start: it still
+              # registers the gateway-default slot but doesn't auto-start it,
+              # so the CMD-spawned gateway is the only one running.
+              rm -f /opt/data/gateway_state.json /opt/data/gateway.lock /opt/data/gateway.pid
               chown -R 10000:10000 /opt/data
           volumeMounts:
             - name: data
